@@ -1,0 +1,4 @@
+torchmetrics
+pytorch-lightning
+ftfy
+bresenham
