@@ -116,7 +116,7 @@ class MultiModalPromptLearner(nn.Module):
         
         self.prompt_prefix = prompt_prefix
         self.proj = nn.Linear(ctx_dim, 768)
-        single_layer = nn.Linear(ctx_dim, 768),
+        single_layer = nn.Linear(ctx_dim, 768)
         self.compound_prompt_projections = get_clones(
             single_layer, self.compound_prompts_depth - 1
         )
