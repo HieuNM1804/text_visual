@@ -5,7 +5,6 @@ from torch.nn import functional as F
 
 from clip import clip
 from clip.simple_tokenizer import SimpleTokenizer as _Tokenizer
-from src.utils import get_clones
 from src.data_config import UNSEEN_CLASSES
 
 _tokenizer = _Tokenizer()
@@ -116,14 +115,9 @@ class MultiModalPromptLearner(nn.Module):
         
         self.prompt_prefix = prompt_prefix
         self.proj = nn.Linear(ctx_dim, 768)
-        single_layer = nn.Linear(ctx_dim, 768)
-        self.compound_prompt_projections = get_clones(
-            single_layer, self.compound_prompts_depth - 1
-        )
         
         if dtype == torch.float16:
             self.proj.half()
-            self.compound_prompt_projections.half()
         self.ctx = nn.Parameter(ctx_vectors)
 
         # self.compound_prompts_text = nn.ParameterList(
@@ -182,16 +176,6 @@ class MultiModalPromptLearner(nn.Module):
         suffix = embedding[:, 1 + self.cfg.n_ctx :, :]
         
         prompts = self.construct_prompts(ctx, prefix, suffix, label)
-        
-        # Before returning, need to transform prompts to 768 for the visual side
-        # visual_deep_prompts = []
-        # for index, layer in enumerate(self.compound_prompt_projections):
-        #     text_prompt = self.compound_prompts_text[index]
-        #     if self.training:
-        #         text_prompt = self.dropout_layer(text_prompt)
-        #     visual_deep_prompts.append(layer(text_prompt))
-        # Now the other way around
-        # We will project the textual prompts from 512 to 768
         
         return (
             tokenized_prompts,
