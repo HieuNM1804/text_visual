@@ -45,7 +45,6 @@ class CustomCLIP(nn.Module):
         self.adapter_photo = Adapter(512, 4).to(clip_model.dtype)
         self.adapter_text = Adapter(512, 4).to(clip_model.dtype)
         self.text_to_visual_bridge = nn.Linear(512, 768).to(clip_model.dtype)
-        self.text_to_visual_gate = nn.Parameter(torch.tensor(-1.5))
         self.late_text_to_visual_gate = nn.Parameter(torch.tensor(-1.5))
         
         self.model_distill = clip_model_distill
@@ -78,17 +77,19 @@ class CustomCLIP(nn.Module):
         text_stage_depth = min(max(self.text_stage_depth, 1), total_text_blocks)
         visual_stage_depth = min(max(self.visual_stage_depth, 1), total_visual_blocks)
 
-        text_hidden = self.text_encoder.run_blocks(text_hidden, end=text_stage_depth)
-        early_text_ctx = self.text_encoder.extract_prompt_context(text_hidden).mean(dim=1)
-
-        early_visual_ctx = self.text_to_visual_bridge(early_text_ctx.type(self.dtype))
         shared_ctx = shared_ctx.type(self.dtype)
-        stage1_gate = self._gate(self.text_to_visual_gate, shared_ctx)
-        stage1_visual_ctx = torch.lerp(shared_ctx, early_visual_ctx, stage1_gate)
-
-        visual_hidden = image_encoder.embed_tokens(img_tensor.type(self.dtype), stage1_visual_ctx)
+        # Keep the first visual stage text-free; only the later visual blocks
+        # receive text-guided prompt updates.
+        visual_hidden = image_encoder.embed_tokens(
+            img_tensor.type(self.dtype),
+            torch.zeros_like(shared_ctx),
+        )
         visual_hidden = image_encoder.run_blocks(visual_hidden, end=visual_stage_depth)
 
+        text_hidden = self.text_encoder.run_blocks(
+            text_hidden,
+            end=text_stage_depth,
+        )
         text_hidden = self.text_encoder.run_blocks(
             text_hidden,
             start=text_stage_depth,
