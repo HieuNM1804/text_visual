@@ -45,9 +45,7 @@ class CustomCLIP(nn.Module):
         self.adapter_photo = Adapter(512, 4).to(clip_model.dtype)
         self.adapter_text = Adapter(512, 4).to(clip_model.dtype)
         self.text_to_visual_bridge = nn.Linear(512, 768).to(clip_model.dtype)
-        self.visual_to_text_bridge = nn.Linear(768, 512).to(clip_model.dtype)
         self.text_to_visual_gate = nn.Parameter(torch.tensor(-1.5))
-        self.visual_to_text_gate = nn.Parameter(torch.tensor(-1.5))
         self.late_text_to_visual_gate = nn.Parameter(torch.tensor(-1.5))
         
         self.model_distill = clip_model_distill
@@ -91,15 +89,10 @@ class CustomCLIP(nn.Module):
         visual_hidden = image_encoder.embed_tokens(img_tensor.type(self.dtype), stage1_visual_ctx)
         visual_hidden = image_encoder.run_blocks(visual_hidden, end=visual_stage_depth)
 
-        visual_mid_ctx = image_encoder.extract_prompt_context(visual_hidden).mean(dim=1)
-        visual_mid_ctx = self.visual_to_text_bridge(visual_mid_ctx.type(self.dtype)).to(dtype=self.text_encoder.dtype)
-        text_stage2_gate = self._gate(self.visual_to_text_gate, text_hidden)
         text_hidden = self.text_encoder.run_blocks(
             text_hidden,
             start=text_stage_depth,
             end=total_text_blocks,
-            injected_ctx=visual_mid_ctx,
-            blend=text_stage2_gate,
         )
         text_features = self.text_encoder.finalize_features(text_hidden, tokenized_prompts)
 
